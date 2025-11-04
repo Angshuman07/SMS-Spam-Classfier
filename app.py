@@ -1,50 +1,31 @@
-from flask import Flask, render_template_string, request
-import pickle
-
-# Load model and vectorizer
-model = pickle.load(open('model.pkl', 'rb'))
-vectorizer = pickle.load(open('vectorizer.pkl', 'rb'))
+from flask import Flask, render_template, request, jsonify
+import joblib, re
+from pathlib import Path
 
 app = Flask(__name__)
 
-HTML = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>SMS Spam Classifier</title>
-    <style>
-        body {font-family: Arial; background-color: #f7f8fa; text-align: center; margin-top: 100px;}
-        form {background-color: white; display: inline-block; padding: 30px; border-radius: 15px; box-shadow: 0px 0px 15px #ccc;}
-        input[type=text] {width: 300px; padding: 10px; margin: 10px;}
-        input[type=submit] {background-color: #4CAF50; color: white; border: none; padding: 10px 20px; cursor: pointer;}
-        .result {font-size: 18px; margin-top: 20px;}
-    </style>
-</head>
-<body>
-    <h1>📩 SMS Spam Classifier</h1>
-    <form method="post">
-        <input type="text" name="message" placeholder="Enter your message here" required />
-        <br>
-        <input type="submit" value="Predict" />
-    </form>
-    {% if prediction %}
-    <div class="result">
-        <p><b>Prediction:</b> {{ prediction }}</p>
-    </div>
-    {% endif %}
-</body>
-</html>
-"""
+vect = joblib.load("models/tfidf_vectorizer.joblib")
+clf = joblib.load("models/multinomial_nb.joblib")
 
-@app.route('/', methods=['GET', 'POST'])
-def home():
-    prediction = None
-    if request.method == 'POST':
-        message = request.form['message']
-        transformed_msg = vectorizer.transform([message])
-        pred = model.predict(transformed_msg)[0]
-        prediction = "🚫 Spam" if pred == 'spam' else "✅ Not Spam"
-    return render_template_string(HTML, prediction=prediction)
+def preprocess(text):
+    text = text.lower()
+    text = re.sub(r'http\S+', ' ', text)
+    text = re.sub(r'[^a-z0-9\s]', ' ', text)
+    return " ".join(text.split())
 
-if __name__ == '__main__':
-    app.run(debug=True)
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+@app.route("/predict", methods=["POST"])
+def predict():
+    msg = request.form.get("message") or request.json.get("message")
+    if not msg:
+        return jsonify({"error": "No message provided"}), 400
+    X = vect.transform([preprocess(msg)])
+    proba = clf.predict_proba(X)[0]
+    label = "spam" if proba[1] > 0.5 else "ham"
+    return jsonify({"label": label, "probability": float(proba[1])})
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)

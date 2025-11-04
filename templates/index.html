@@ -1,0 +1,42 @@
+
+
+```html
+<!doctype html>
+<html>
+<head>
+  <title>SMS Spam Classifier</title>
+  <style>
+    body { font-family: Arial; max-width: 700px; margin: 3rem auto; }
+    textarea { width: 100%; height: 120px; }
+    button { margin-top: 1rem; padding: 0.5rem 1rem; }
+    .result { margin-top: 1rem; padding: 1rem; border-radius: 8px; }
+    .spam { background: #ffd6d6; }
+    .ham { background: #d6ffd8; }
+  </style>
+</head>
+<body>
+  <h1>SMS Spam Classifier</h1>
+  <form id="form">
+    <textarea id="msg" name="message">Win a free ticket now!</textarea>
+    <button type="submit">Check</button>
+  </form>
+  <div id="out"></div>
+  <script>
+    document.getElementById('form').onsubmit = async e => {
+      e.preventDefault();
+      const msg = document.getElementById('msg').value;
+      const res = await fetch('/predict', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({message: msg})
+      });
+      const data = await res.json();
+      const div = document.getElementById('out');
+      if (data.error) return div.innerHTML = data.error;
+      div.innerHTML = `<div class="result ${data.label}">
+        <strong>${data.label.toUpperCase()}</strong> — probability ${(data.probability*100).toFixed(1)}%
+      </div>`;
+    };
+  </script>
+</body>
+</html>
